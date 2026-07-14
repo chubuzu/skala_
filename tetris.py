@@ -8,17 +8,18 @@ pygame.init()
 CELL_SIZE = 30
 COLS = 10
 ROWS = 20
-GAME_WIDTH = COLS * CELL_SIZE
-SIDEBAR_WIDTH = 200  # 다음 블록과 점수를 표시할 사이드바 공간 추가
-SCREEN_WIDTH = GAME_WIDTH + SIDEBAR_WIDTH
-SCREEN_HEIGHT = ROWS * CELL_SIZE
+GAME_WIDTH = COLS * CELL_SIZE  # 게임판 가로 (300px)
+SIDEBAR_WIDTH = 200            # 우측 사이드바 가로 (200px)
+SCREEN_WIDTH = GAME_WIDTH + SIDEBAR_WIDTH  # 전체 가로 (500px)
+SCREEN_HEIGHT = ROWS * CELL_SIZE           # 전체 세로 (600px)
 FPS = 60
 
 # 색상 정의 (RGB)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-GRAY = (50, 50, 50)
+GRAY = (40, 40, 40)
 LIGHT_GRAY = (150, 150, 150)
+PANEL_BG = (25, 25, 25) # 사이드바 패널 배경색
 COLORS = [
     (0, 255, 255),  # 하늘색 (I)
     (255, 255, 0),  # 노란색 (O)
@@ -43,26 +44,26 @@ SHAPES = [
 class Tetris:
     def __init__(self):
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Tetris - Next Piece")
+        pygame.display.set_caption("Tetris - Score & Next")
         self.clock = pygame.time.Clock()
         self.grid = [[0] * COLS for _ in range(ROWS)]
         self.game_over = False
         self.score = 0
         
-        # 폰트 설정
-        self.font = pygame.font.SysFont("malgungothic", 24) # 윈도우/맥 호환 기본 폰트
+        # 폰트 설정 (시스템 기본 폰트)
+        self.font_title = pygame.font.SysFont("arial", 16, bold=True)
+        self.font_score = pygame.font.SysFont("arial", 24, bold=True)
         
-        # 첫 블록과 다음 블록 미리 생성
+        # 첫 블록과 다음 블록 생성
         self.next_shape_index = random.randint(0, len(SHAPES) - 1)
         self.new_piece()
 
     def new_piece(self):
-        # 현재 블록은 이전의 '다음 블록'이 됨
         self.shape_index = self.next_shape_index
         self.shape = SHAPES[self.shape_index]
         self.color = COLORS[self.shape_index]
         
-        # 새로운 '다음 블록' 미리 뽑아두기
+        # 다음 블록 미리 생성
         self.next_shape_index = random.randint(0, len(SHAPES) - 1)
         
         # 블록 시작 위치 (중앙 상단)
@@ -94,6 +95,7 @@ class Tetris:
     def clear_lines(self):
         new_grid = [row for row in self.grid if any(cell == 0 for cell in row)]
         cleared = ROWS - len(new_grid)
+        # 줄을 없앨 때마다 점수 추가 (1줄당 100점)
         self.score += cleared * 100
         while len(new_grid) < ROWS:
             new_grid.insert(0, [0] * COLS)
@@ -112,20 +114,36 @@ class Tetris:
         return False
 
     def draw_sidebar(self):
-        # 사이드바 경계선
+        """ 우측 상단에 점수와 다음 블록을 그려주는 영역 """
+        # 사이드바 전체 배경색 채우기
+        pygame.draw.rect(self.screen, PANEL_BG, (GAME_WIDTH, 0, SIDEBAR_WIDTH, SCREEN_HEIGHT))
+        # 게임판과 사이드바 경계선
         pygame.draw.line(self.screen, LIGHT_GRAY, (GAME_WIDTH, 0), (GAME_WIDTH, SCREEN_HEIGHT), 2)
         
-        # 1. 'NEXT' 텍스트 표시
-        next_text = self.font.render("NEXT", True, WHITE)
-        self.screen.blit(next_text, (GAME_WIDTH + 30, 30))
+        # --- 1. SCORE 영역 (오른쪽 상단 첫 번째) ---
+        score_title = self.font_title.render("SCORE", True, LIGHT_GRAY)
+        score_val = self.font_score.render(str(self.score), True, WHITE)
+        self.screen.blit(score_title, (GAME_WIDTH + 20, 30))
+        self.screen.blit(score_val, (GAME_WIDTH + 20, 55))
         
-        # 2. 다음 블록 미리보기 그리기
+        # --- 2. NEXT PIECE 영역 (오른쪽 상단 두 번째) ---
+        next_title = self.font_title.render("NEXT", True, LIGHT_GRAY)
+        self.screen.blit(next_title, (GAME_WIDTH + 20, 130))
+        
+        # 다음 블록 박스 테두리
+        box_x, box_y = GAME_WIDTH + 20, 160
+        box_w, box_h = 100, 100
+        pygame.draw.rect(self.screen, BLACK, (box_x, box_y, box_w, box_h))
+        pygame.draw.rect(self.screen, GRAY, (box_x, box_y, box_w, box_h), 1)
+        
+        # 다음 블록 그리기
         next_shape = SHAPES[self.next_shape_index]
         next_color = COLORS[self.next_shape_index]
+        preview_cell_size = 20 # 미니 블록 크기
         
-        # 미리보기 상자 중앙 정렬을 위한 오프셋 계산
-        start_x = GAME_WIDTH + 40
-        start_y = 80
+        # 미니 박스 안 중앙 정렬용 계산
+        start_x = box_x + (box_w - len(next_shape[0]) * preview_cell_size) // 2
+        start_y = box_y + (box_h - len(next_shape) * preview_cell_size) // 2
         
         for r, row in enumerate(next_shape):
             for c, cell in enumerate(row):
@@ -133,14 +151,8 @@ class Tetris:
                     pygame.draw.rect(
                         self.screen, 
                         next_color, 
-                        (start_x + c * CELL_SIZE, start_y + r * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1)
+                        (start_x + c * preview_cell_size, start_y + r * preview_cell_size, preview_cell_size - 1, preview_cell_size - 1)
                     )
-                    
-        # 3. 점수(SCORE) 표시
-        score_label = self.font.render("SCORE", True, WHITE)
-        score_val = self.font.render(str(self.score), True, WHITE)
-        self.screen.blit(score_label, (GAME_WIDTH + 30, 240))
-        self.screen.blit(score_val, (GAME_WIDTH + 30, 280))
 
     def draw(self):
         self.screen.fill(BLACK)
@@ -159,20 +171,20 @@ class Tetris:
                         pygame.draw.rect(self.screen, self.color, 
                                          ((self.piece_x + c) * CELL_SIZE, (self.piece_y + r) * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1))
         
-        # 3. 격자 배경 선 그리기 (게임판 내부만)
+        # 3. 격자 배경 선 그리기 (게임판 내부에만)
         for c in range(COLS + 1):
             pygame.draw.line(self.screen, GRAY, (c * CELL_SIZE, 0), (c * CELL_SIZE, SCREEN_HEIGHT), 1)
         for r in range(ROWS):
             pygame.draw.line(self.screen, GRAY, (0, r * CELL_SIZE), (GAME_WIDTH, r * CELL_SIZE), 1)
 
-        # 4. 우측 사이드바(이동 경로 및 다음 블록) 그리기
+        # 4. 오른쪽 상단 스코어 & 넥스트 패널 그리기
         self.draw_sidebar()
 
         pygame.display.flip()
 
     def run(self):
         fall_time = 0
-        fall_speed = 400 # 속도를 조금 더 조절했습니다.
+        fall_speed = 400
 
         while not self.game_over:
             dt = self.clock.tick(FPS)
